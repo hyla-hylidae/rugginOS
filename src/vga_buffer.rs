@@ -1,7 +1,9 @@
-use volatile::Volatile;
-use core::fmt;
 use lazy_static::lazy_static;
 use spin::Mutex;
+use volatile::Volatile;
+
+use core::fmt;
+
 
 #[macro_export]
 macro_rules! printk {
@@ -51,8 +53,8 @@ pub enum Color {
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
-#[repr(transparent)]
-struct ColorCode(u8); // AKA typedef
+#[repr(transparent)] // AKA typedef
+struct ColorCode(u8);
 
 impl ColorCode {
     fn new(foreground: Color, background: Color) -> ColorCode {
@@ -82,6 +84,17 @@ pub struct Writer {
 }
 
 impl Writer {
+    pub fn write_string(&mut self, s: &str) {
+        for byte in s.bytes() {
+            match byte {
+                // printable ASCII byte or newline
+                0x20..=0x7e | b'\n' => self.write_byte(byte),
+                // not part of printable ASCII range
+                _ => self.write_byte(0xfe),
+            }
+        }
+    }
+
     pub fn write_byte(&mut self, byte: u8) {
         match byte {
             b'\n' => self.new_line(),
@@ -103,6 +116,7 @@ impl Writer {
             }
         }
     }
+
     fn new_line(&mut self) {
         for row in 1..BUFFER_HEIGHT {
             for col in 0..BUFFER_WIDTH {
@@ -124,18 +138,6 @@ impl Writer {
             self.buffer.chars[row][col].write(blank);
         }
     }
-
-    pub fn write_string(&mut self, s: &str) {
-        for byte in s.bytes() {
-            match byte {
-                // if all the printable ASCII bytes, or \n
-                0x20..=0x7e | b'\n' => self.write_byte(byte),
-                // otherwise (real switch-case default,
-                // doesn't capture the variable)
-                _ => self.write_byte(0xfe),
-            }
-        }
-    }
 }
 
 impl fmt::Write for Writer {
@@ -144,4 +146,3 @@ impl fmt::Write for Writer {
         Ok(())
     }
 }
-
